@@ -1,0 +1,12 @@
+package.xdc
+package.xs
+package/xconfig_Lab2idle.sch
+package/.vers_g200
+package/.vers_r200
+package/.vers_b200
+package/.xdc-K04
+package/xconfig_Lab2idle.java
+package/xconfig_Lab2idle.class
+package/package_xconfig_Lab2idle.c
+package/package.defs.h
+package/xconfig_Lab2idle.ccs
