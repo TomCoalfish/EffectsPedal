@@ -88,7 +88,7 @@ Void myIdleFxn2(Void) // MP
 // N - The total number of bits in the original sample.
 Void effect_bitCrush(UInt *x, UInt m, UInt N){
     // Calculate number of bits to shift by
-    shift = N - m;
+    UInt shift = N - m;
 
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
