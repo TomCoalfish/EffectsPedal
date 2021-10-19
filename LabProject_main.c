@@ -77,3 +77,25 @@ Void myIdleFxn2(Void) // MP
         i++; // MP
     } // MP
 } // MP
+
+/* ======== effect_bitCrush ======== */
+// Reduces the resolution of x to the specified
+// number of bits (m).
+//
+// Parameters:
+// *x - The address of the sample to reduce the resolution.
+// m - The desired number of bit resolution.
+// N - The total number of bits in the original sample.
+Void effect_bitCrush(UInt *x, UInt m, UInt N){
+    // Calculate number of bits to shift by
+    shift = N - m;
+
+    // Shift right to reduce bit resolution,
+    // shift back to original number of bits
+    *x = (*x >> shift) << shift;
+}
+
+/* ======== effect_echo ======== */
+//Void effect_echo(UInt *x_arr){
+
+//}
