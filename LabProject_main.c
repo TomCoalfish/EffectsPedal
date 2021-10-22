@@ -15,6 +15,7 @@
 //defines:
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 10000
+#define num_buffers 2
 
 //includes:
 #include <xdc/std.h>
@@ -32,16 +33,14 @@ volatile Bool isrFlag2 = FALSE; // MP - flag used by idle2 function
 volatile UInt i = 0; // MP - Seconds counter
 volatile Int tickCount = 0; //counter incremented by timer interrupt
 
-/* ---- Declare Buffers ---- */
+/* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
 // throws an error due to how the RAM is addressed
-volatile int16 sample_buffer0[buffer_length]; // Buffer for audio samples
-volatile int16 sample_buffer1[buffer_length];
-volatile int16 sample_buffer2[buffer_length];
-volatile int16 sample_buffer3[buffer_length];
+volatile int16 sample_buffer[buffer_length];
 
 volatile Uint16 buffer_i = 0; // Current index of buffer
-volatile Uint16 buffer_n = 0; // Current buffer
+
+volatile Bool newSampleFlag = FALSE;
 
 /* ======== main ======== */
 Int main()
@@ -115,14 +114,20 @@ Void effect_bitCrush(UInt *x, UInt m, UInt N){
 Void audioIn_hwi(Void)
 {
     int16 input_sample;
-    //read ADC value from temperature sensor:
-    input_sample = AdcaResultRegs.ADCRESULT0; //get reading and scale re VREFHI
 
-    sample_buffer0[buffer_i] = input_sample; // Store input_sample into buffer
+    input_sample = AdcaResultRegs.ADCRESULT0; //get reading from ADC
 
-//    if(buffer_i >= buffer_length - 1) buffer_i = 0;
-//    else buffer_i++;
+    // Store sample into the next buffer slot
+    sample_buffer[buffer_i] = input_sample;
+
+    // Circular buffer indexing
+    if(buffer_i >= buffer_length - 1) buffer_i = 0;
+    else buffer_i++;
+
 
     AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
+
+    // Set flag indicating new sample has been captured
+    newSampleFlag = TRUE;
 }
 
