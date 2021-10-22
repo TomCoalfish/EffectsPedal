@@ -40,8 +40,6 @@ volatile int16 sample_buffer[buffer_length];
 
 volatile Uint16 buffer_i = 0; // Current index of buffer
 
-volatile Bool newSampleFlag = FALSE;
-
 /* ======== main ======== */
 Int main()
 { 
@@ -127,7 +125,7 @@ Void audioIn_hwi(Void)
 
     AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
-    // Set flag indicating new sample has been captured
-    newSampleFlag = TRUE;
+    // Set SWI post indicating new sample has been captured
+
 }
 
