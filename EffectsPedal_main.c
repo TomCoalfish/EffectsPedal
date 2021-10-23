@@ -15,7 +15,6 @@
 //defines:
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 10000
-#define num_buffers 2
 
 //includes:
 #include <xdc/std.h>
