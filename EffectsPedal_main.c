@@ -116,6 +116,8 @@ Void audioIn_hwi(Void)
 
     input_sample = AdcdResultRegs.ADCRESULT0; //get reading from ADC
 
+    System_printf("input_sample: %u \n", input_sample);
+
     // Store sample into the next buffer slot
     sample_buffer[buffer_i] = input_sample;
 
