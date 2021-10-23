@@ -114,7 +114,7 @@ Void audioIn_hwi(Void)
 {
     int16 input_sample;
 
-    input_sample = AdcdResultRegs.ADCRESULT0; //get reading from ADC
+    input_sample = AdcaResultRegs.ADCRESULT0; //get reading from ADC
 
     System_printf("input_sample: %u \n", input_sample);
 
@@ -126,7 +126,7 @@ Void audioIn_hwi(Void)
     else buffer_i++;
 
 
-    AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
+    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
     // Set SWI post indicating new sample has been captured
 
