@@ -8,6 +8,9 @@
 //
 // Author:              David Romalo
 //
+// Modified By:         Matthew Peeters, A01014378
+//                      Kieran Bako, A01028276
+//
 // Date:                19Oct2021
 
 #include <Headers/F2837xD_device.h>
@@ -36,7 +39,7 @@ EALLOW;
     AdcaRegs.ADCCTL1.bit.ADCPWDNZ = 1;
 
     //generate INT pulse on end of conversion:
-    AdcaRegs.ADCCTL1.bit.INTPULSEPOS = 1;
+    AdcbRegs.ADCCTL1.bit.INTPULSEPOS = 1;
 
     //wait 1 ms after power-up before using the ADC:
     DelayUs(1000);

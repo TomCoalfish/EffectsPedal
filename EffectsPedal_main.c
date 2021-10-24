@@ -9,10 +9,9 @@
 // Date:                Oct. 12, 2021
 //
 // Modified By:         Matthew Peeters, A01014378
+//                      Kieran Bako, A01028276
 // Modification Date:   2021-10-13
 // Added myIdleFxn2 to print to print to the SysMin OutputBuffer every second.
-
-//This is a test push
 
 //defines:
 #define xdc__strict //suppress typedef warnings
