@@ -37,7 +37,7 @@ volatile Int tickCount = 0; //counter incremented by timer interrupt
 /* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
 // throws an error due to how the RAM is addressed
-volatile int16 sample_buffer[buffer_length];
+volatile Uint16 sample_buffer[buffer_length];
 
 volatile Uint16 buffer_i = 0; // Current index of buffer
 
@@ -112,11 +112,9 @@ Void effect_bitCrush(UInt *x, UInt m, UInt N){
 
 Void audioIn_hwi(Void)
 {
-    int16 input_sample;
+    Uint16 input_sample = 0;
 
-    input_sample = AdcaResultRegs.ADCRESULT0; //get reading from ADC
-
-    System_printf("input_sample: %u \n", input_sample);
+    input_sample = AdcaResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
     // Store sample into the next buffer slot
     sample_buffer[buffer_i] = input_sample;
