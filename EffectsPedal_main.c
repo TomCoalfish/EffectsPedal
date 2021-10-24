@@ -126,6 +126,16 @@ Void audioIn_hwi(Void)
     AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
     // Set SWI post indicating new sample has been captured
+    // <INSERT SWI POST HERE>
 
+    DacaRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // Test pass-through output (Shifts Uint16 down to 12-bit resolution)
+}
+
+//////////////////////// NEED TO IMPLEMENT THIS SWI
+Void audioOut_swi(Void){
+    // For predictable behavior of DAC, consecutive writes should
+    // be spaced apart according to settling time.
+
+    DacaRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4;
 }
 

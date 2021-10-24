@@ -30,6 +30,13 @@ EALLOW;
     GpioDataRegs.GPBCLEAR.bit.GPIO34 = 1;
 
     //---------------------------------------------------------------
+    // INITIALIZE D-A
+    //---------------------------------------------------------------
+    CpuSysRegs.PCLKCR16.bit.DAC_A = 1; // Enable DAC clock
+    DacaRegs.DACCTL.bit.DACREFSEL = 0; // Set DACREFSEL to VDAC/VSSA
+    DacaRegs.DACOUTEN.bit.DACOUTEN = 1; // Power up DAC
+
+    //---------------------------------------------------------------
     // INITIALIZE A-D
     //---------------------------------------------------------------
     CpuSysRegs.PCLKCR13.bit.ADC_A = 1; //enable A-D clock for ADC-A
@@ -44,13 +51,11 @@ EALLOW;
     //wait 1 ms after power-up before using the ADC:
     DelayUs(1000);
 
-//    AnalogSubsysRegs.TSNSCTL.bit.ENABLE = 1; //connect temp sensor to ADCIN13 on ADC-A
-
-
     AdcaRegs.ADCSOC0CTL.bit.TRIGSEL = 2; //trigger source = CPU1 Timer 1
     AdcaRegs.ADCSOC0CTL.bit.CHSEL = 0; //set SOC0 to sample A0
     AdcaRegs.ADCSOC0CTL.bit.ACQPS = 139; //set SOC0 window to 139 SYSCLK cycles
     AdcaRegs.ADCINTSEL1N2.bit.INT1SEL = 0; //connect interrupt ADCINT1 to EOC0
     AdcaRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable interrupt ADCINT1
+
 EDIS;
 }
