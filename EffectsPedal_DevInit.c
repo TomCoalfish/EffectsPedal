@@ -33,7 +33,7 @@ EALLOW;
     // INITIALIZE D-A
     //---------------------------------------------------------------
     CpuSysRegs.PCLKCR16.bit.DAC_B = 1; // Enable DAC clock
-    DacbRegs.DACCTL.bit.DACREFSEL = 0; // Set DACREFSEL to VDAC/VSSA
+    DacbRegs.DACCTL.bit.DACREFSEL = 1; // Set DACREFSEL to VREFHI/VSSA
     DacbRegs.DACOUTEN.bit.DACOUTEN = 1; // Power up DAC_B (pin 70)
 
     //---------------------------------------------------------------
