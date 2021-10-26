@@ -101,10 +101,11 @@ void myIdleFxn2(Void) // MP
 // Parameters:
 // *x - The address of the sample to reduce the resolution.
 // m - The desired number of bit resolution.
-// N - The total number of bits in the original sample.
 void effect_bitCrush(volatile UInt16 *x, UInt16 m){
-    // Calculate number of bits to shift by based on UInt16
+    // Calculate number of bits to shift by based on UInt16 resolution from ADC
     UInt16 shift = 16 - m;
+
+    if (shift < 0) shift = 0;
 
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
@@ -112,19 +113,38 @@ void effect_bitCrush(volatile UInt16 *x, UInt16 m){
 }
 
 /* ======== effect_echo ======== */
-//Void effect_echo(UInt *x_arr){
+// Adds an echo effect to the sample by
+// adding an attenuated sample to the current sample
+// with m elements of delay.
+//
+// Parameters:
+// *x - The address of the sample to add delay to.
+// m - The desired number of elements of delay.
+void effect_echo(volatile UInt16 *x, UInt16 m){
+    float g = 0.5; // This will need to be adjusted by effect knob
+    UInt16 delay_i;
 
-//}
+    if(m >= buffer_length - buffer_i){
+        delay_i = m - (buffer_length - buffer_i);
+    }
+    else{
+        delay_i = buffer_i + m;
+    }
+
+    *x = *x + (UInt16)(g*sample_buffer[delay_i]);
+}
 
 
 /* ======== effect_chorus ======== */
 // Adds a small delay on the order of micro/milli-seconds
 // to the current sample to emulate a chorus effect.
 // Does not add this to the buffer!
+//
+// Parameters:
 // *x - The address of the sample to add echo to.
 // m - The amount of echo to add in samples
 void effect_chorus(volatile UInt16 *x, UInt16 m){
-    float g = 0.5;
+    float g = 1.0;
     UInt16 delay_i;
 
     if(m >= buffer_length - buffer_i){
