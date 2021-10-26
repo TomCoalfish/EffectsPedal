@@ -30,10 +30,10 @@ EALLOW;
     GpioDataRegs.GPBCLEAR.bit.GPIO34 = 1;
 
     //---------------------------------------------------------------
-    // INITIALIZE D-A
+    // INITIALIZE D-A ---- ENSURE PIN 29 IS TIED TO 3.3V (VREFHIB)
     //---------------------------------------------------------------
     CpuSysRegs.PCLKCR16.bit.DAC_B = 1; // Enable DAC clock
-    DacbRegs.DACCTL.bit.DACREFSEL = 0; // Set DACREFSEL to VDAC/VSSA
+    DacbRegs.DACCTL.bit.DACREFSEL = 1; // Set DACREFSEL to VREFHIB/VSSA
     DacbRegs.DACOUTEN.bit.DACOUTEN = 1; // Power up DAC_B (pin 70)
 
     //---------------------------------------------------------------
@@ -52,7 +52,7 @@ EALLOW;
     DelayUs(1000);
 
     AdcdRegs.ADCSOC0CTL.bit.TRIGSEL = 2; //trigger source = CPU1 Timer 1
-    AdcdRegs.ADCSOC0CTL.bit.CHSEL = 0; ////////////////////set SOC0 to sample A2 and A3 (pins 29 and 26)
+    AdcdRegs.ADCSOC0CTL.bit.CHSEL = 0; // set SOC0 to sample D0 and D1
     AdcdRegs.ADCSOC0CTL.bit.ACQPS = 139; //set SOC0 window to 139 SYSCLK cycles
     AdcdRegs.ADCINTSEL1N2.bit.INT1SEL = 0; //connect interrupt ADCINT1 to EOC0
     AdcdRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable interrupt ADCINT1

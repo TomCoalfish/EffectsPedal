@@ -105,7 +105,7 @@ void effect_bitCrush(volatile UInt16 *x, UInt16 m){
     // Calculate number of bits to shift by based on UInt16 resolution from ADC
     UInt16 shift = 16 - m;
 
-    if (shift < 0) shift = 0;
+    if (shift >= 16) shift = 0;
 
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
@@ -164,6 +164,8 @@ void audioIn_hwi(Void)
     // Store sample sample in the next buffer slot
     sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
+    DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // pass through test to DAC
+
     // Circular buffer indexing
     if(buffer_i >= buffer_length - 1) buffer_i = 0;
     else buffer_i++;
@@ -171,7 +173,7 @@ void audioIn_hwi(Void)
     AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
     // Set SWI post indicating new sample has been captured
-    audioOut_swi(); // Just call swi directly for now...
+//    audioOut_swi(); // Just call swi directly for now...
 }
 
 
