@@ -40,10 +40,17 @@ volatile Uint16 sample_buffer[buffer_length];
 
 volatile Uint16 buffer_i = 0; // Current index of buffer
 
+void (*audio_effect)(volatile UInt16 *, UInt16); // Declare pointer to function
+void effect_bitCrush(volatile UInt16 *x, UInt16 m);
+void audioOut_swi(void);
+
 /* ======== main ======== */
 Int main()
 { 
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
+
+    // Set audio_effect function pointer
+    audio_effect = &effect_bitCrush;
 
     //initialization:
     DeviceInit(); //initialize processor
@@ -56,7 +63,7 @@ Int main()
 /* ======== myTickFxn ======== */
 //Timer tick function that increments a counter and sets the isrFlag
 //Entered 100 times per second if PLL and Timer set up correctly
-Void myTickFxn(UArg arg)
+void myTickFxn(UArg arg)
 {
     tickCount++; //increment the tick counter
     if(tickCount % 5 == 0) {
@@ -69,7 +76,7 @@ Void myTickFxn(UArg arg)
 
 /* ======== myIdleFxn ======== */
 //Idle function that is called repeatedly from RTOS
-Void myIdleFxn(Void)
+void myIdleFxn(Void)
 {
    if(isrFlag == TRUE) {
        isrFlag = FALSE;
@@ -78,7 +85,7 @@ Void myIdleFxn(Void)
    }
 }
 
-Void myIdleFxn2(Void) // MP
+void myIdleFxn2(Void) // MP
 { // MP
     if(isrFlag2 == TRUE){ // MP
         isrFlag2 = FALSE; // MP
@@ -95,9 +102,9 @@ Void myIdleFxn2(Void) // MP
 // *x - The address of the sample to reduce the resolution.
 // m - The desired number of bit resolution.
 // N - The total number of bits in the original sample.
-Void effect_bitCrush(UInt *x, UInt m, UInt N){
-    // Calculate number of bits to shift by
-    UInt shift = N - m;
+void effect_bitCrush(volatile UInt16 *x, UInt16 m){
+    // Calculate number of bits to shift by based on UInt16
+    UInt16 shift = 16 - m;
 
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
@@ -109,33 +116,30 @@ Void effect_bitCrush(UInt *x, UInt m, UInt N){
 
 //}
 
-Void audioIn_hwi(Void)
+void audioIn_hwi(Void)
 {
-    Uint16 input_sample = 0;
-
-    input_sample = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
-
-    // Store sample into the next buffer slot
-    sample_buffer[buffer_i] = input_sample;
+    // Store sample sample in the next buffer slot
+    sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
     // Circular buffer indexing
     if(buffer_i >= buffer_length - 1) buffer_i = 0;
     else buffer_i++;
 
-
     AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
     // Set SWI post indicating new sample has been captured
-    // <INSERT SWI POST HERE>
-
-    DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // Test pass-through output (Shifts Uint16 down to 12-bit resolution)
+    audioOut_swi(); // Just call swi directly for now...
 }
 
-//////////////////////// NEED TO IMPLEMENT THIS SWI
-Void audioOut_swi(Void){
-    // For predictable behavior of DAC, consecutive writes should
-    // be spaced apart according to settling time.
 
+void audioOut_swi(Void){
+    // "For predictable behavior of DAC, consecutive writes should
+    // be spaced apart according to settling time." - datasheet (can't remember which...)
+
+    // Test calling bitCrush function, compressing to 12 bits (arbitrarily)
+    audio_effect(&sample_buffer[buffer_i], 12);
+
+    // Output on DAC, shift down to 12-bit resolution
     DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4;
 }
 
