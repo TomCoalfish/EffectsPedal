@@ -116,6 +116,29 @@ void effect_bitCrush(volatile UInt16 *x, UInt16 m){
 
 //}
 
+
+/* ======== effect_chorus ======== */
+// Adds a small delay on the order of micro/milli-seconds
+// to the current sample to emulate a chorus effect.
+// Does not add this to the buffer!
+// *x - The address of the sample to add echo to.
+// m - The amount of echo to add in samples
+void effect_chorus(volatile UInt16 *x, UInt16 m){
+    float g = 0.5;
+    UInt16 delay_i;
+
+    if(m >= buffer_length - buffer_i){
+        delay_i = m - (buffer_length - buffer_i);
+    }
+    else{
+        delay_i = buffer_i + m;
+    }
+
+    // Note this is incorrect! Need to not add to buffer...
+    *x = *x + (UInt16)(g*sample_buffer[delay_i]);
+}
+
+
 void audioIn_hwi(Void)
 {
     // Store sample sample in the next buffer slot
