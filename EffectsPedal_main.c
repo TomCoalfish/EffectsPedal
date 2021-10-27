@@ -40,8 +40,10 @@ volatile Uint16 sample_buffer[buffer_length];
 
 volatile Uint16 buffer_i = 0; // Current index of buffer
 
-void (*audio_effect)(volatile UInt16 *, UInt16); // Declare pointer to function
-void effect_bitCrush(volatile UInt16 *x, UInt16 m);
+void (*audio_effect)(UInt *, volatile UInt16 *, UInt16); // Declare pointer to function
+void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m);
+void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m);
+void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void audioOut_swi(void);
 
 /* ======== main ======== */
@@ -50,7 +52,7 @@ Int main()
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
     // Set audio_effect function pointer
-    audio_effect = &effect_bitCrush;
+    audio_effect = &effect_chorus;
 
     //initialization:
     DeviceInit(); //initialize processor
@@ -101,7 +103,8 @@ void myIdleFxn2(Void) // MP
 // Parameters:
 // *x - The address of the sample to reduce the resolution.
 // m - The desired number of bit resolution.
-void effect_bitCrush(volatile UInt16 *x, UInt16 m){
+void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m)
+{
     // Calculate number of bits to shift by based on UInt16 resolution from ADC
     UInt16 shift = 16 - m;
 
@@ -109,7 +112,7 @@ void effect_bitCrush(volatile UInt16 *x, UInt16 m){
 
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
-    *x = (*x >> shift) << shift;
+    *y = (*x >> shift) << shift;
 }
 
 /* ======== effect_echo ======== */
@@ -120,8 +123,10 @@ void effect_bitCrush(volatile UInt16 *x, UInt16 m){
 // Parameters:
 // *x - The address of the sample to add delay to.
 // m - The desired number of elements of delay.
-void effect_echo(volatile UInt16 *x, UInt16 m){
-    float g = 0.5; // This will need to be adjusted by effect knob
+void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m)
+{
+    m = 1000;
+    float g = 0.25; // This will need to be adjusted by effect knob
     UInt16 delay_i;
 
     if(m >= buffer_length - buffer_i){
@@ -132,6 +137,7 @@ void effect_echo(volatile UInt16 *x, UInt16 m){
     }
 
     *x = *x + (UInt16)(g*sample_buffer[delay_i]);
+    *y = *x;
 }
 
 
@@ -143,7 +149,8 @@ void effect_echo(volatile UInt16 *x, UInt16 m){
 // Parameters:
 // *x - The address of the sample to add echo to.
 // m - The amount of echo to add in samples
-void effect_chorus(volatile UInt16 *x, UInt16 m){
+void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
+{
     float g = 1.0;
     UInt16 delay_i;
 
@@ -154,8 +161,8 @@ void effect_chorus(volatile UInt16 *x, UInt16 m){
         delay_i = buffer_i + m;
     }
 
-    // Note this is incorrect! Need to not add to buffer...
-    *x = *x + (UInt16)(g*sample_buffer[delay_i]);
+    // This should be correct...
+    *y = *x + (UInt16)(g*sample_buffer[delay_i]);
 }
 
 
@@ -164,7 +171,8 @@ void audioIn_hwi(Void)
     // Store sample sample in the next buffer slot
     sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
-    DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // pass through test to DAC
+    audioOut_swi(); // Just call swi directly for now...
+    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // pass through test to DAC
 
     // Circular buffer indexing
     if(buffer_i >= buffer_length - 1) buffer_i = 0;
@@ -173,18 +181,20 @@ void audioIn_hwi(Void)
     AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
     // Set SWI post indicating new sample has been captured
-//    audioOut_swi(); // Just call swi directly for now...
+//
 }
 
 
 void audioOut_swi(Void){
     // "For predictable behavior of DAC, consecutive writes should
     // be spaced apart according to settling time." - datasheet (can't remember which...)
+    UInt16 y = 0;
 
     // Test calling bitCrush function, compressing to 12 bits (arbitrarily)
-    audio_effect(&sample_buffer[buffer_i], 12);
+    audio_effect(&y, &sample_buffer[buffer_i], 12);
 
     // Output on DAC, shift down to 12-bit resolution
-    DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4;
+    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4;
+    DacbRegs.DACVALS.bit.DACVALS = y >> 4;
 }
 
