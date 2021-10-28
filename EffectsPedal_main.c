@@ -23,6 +23,7 @@
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Swi.h>
 #include <Headers/F2837xD_device.h>
+#include <math.h>
 
 //Swi Handle defined in .cfg file:
 extern const Swi_Handle audioOut_swi_handle;
@@ -47,6 +48,7 @@ void (*audio_effect)(UInt *, volatile UInt16 *, UInt16); // Declare pointer to f
 void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m);
+void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void audioOut_swi(void);
 
 /* ======== main ======== */
@@ -166,6 +168,47 @@ void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
 
     // This should be correct...
     *y = *x + (UInt16)(g*sample_buffer[delay_i]);
+}
+
+/* ======== effect_bandpass ======== */
+// Implements an FIR bandpass filter via Hamming windowing
+//
+// Parameters:
+// *y - The address of the result
+// *x - The address of the incoming sample
+// m - The amount of echo to add in samples
+void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
+{
+    // Assume our our output range will have a frequency spread of 10Hz - 10kHz
+    // Want passband width of ~1kHz ... Lowpass prototype width of 500Hz
+    // Center frequency is variable in the final "Wah" effect, but for now I'm fixing it at 5kHz
+    //Transition width of 500Hz
+
+    //Bandpass center frequency
+    UInt fc = 5000;
+
+    // Sampling Frequency
+    UInt16 fs = 40000;                      //CHECK THIS, NOT SURE WHAT THE SAMPLING RATE IS AT
+
+    // Calculate L
+    float L_f = 3.44 * fs/500;
+    int L = (int)ceilf(L_f);
+    if (L % 2 == 0) L++;
+
+    //h_bpf = h_lpf * w_n * cos(n*omega_0)
+
+    float omega_0 = 2*pi*fc/fs;
+    float omega_c = 2*pi*((500+1000)/2)/fs;
+
+    // Lowpass prototype
+    //float h_lpf = sin(n * omega_c)/(buffer_i * pi);
+
+
+
+
+
+    // Calculate Hamming window
+    //float w_n = 0.54 + 0.46*cos(2*pi*buffer_i/(L-1));
 }
 
 
