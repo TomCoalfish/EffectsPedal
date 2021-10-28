@@ -21,8 +21,11 @@
 #include <xdc/std.h>
 #include <xdc/runtime/System.h>
 #include <ti/sysbios/BIOS.h>
-
+#include <ti/sysbios/knl/Swi.h>
 #include <Headers/F2837xD_device.h>
+
+//Swi Handle defined in .cfg file:
+extern const Swi_Handle audioOut_swi_handle;
 
 //function prototypes:
 extern void DeviceInit(void);
@@ -171,7 +174,7 @@ void audioIn_hwi(Void)
     // Store sample sample in the next buffer slot
     sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
-    audioOut_swi(); // Just call swi directly for now...
+    //audioOut_swi(); // Just call swi directly for now...
     //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // pass through test to DAC
 
     // Circular buffer indexing
@@ -181,6 +184,7 @@ void audioIn_hwi(Void)
     AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
     // Set SWI post indicating new sample has been captured
+    Swi_post(audioOut_swi_handle);
 //
 }
 
