@@ -17,7 +17,7 @@
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 9000
 #define fs 48000 // Sampling Frequency - 48kHz
-#define L 331 // Hamming window length for tw = 500Hz
+#define L 83 // Hamming window length for tw = 2kHz
 
 //includes:
 #include <xdc/std.h>
@@ -67,10 +67,10 @@ Int main()
     audio_effect = &effect_bandpass;
     //audio_effect = &effect_bitCrush;
 
-    float tw = 500.0;
+    float tw = 2000.0;
 //    int L = calc_fir_len(tw);
     float fc_lpf = 500.0;
-    float fc = 5000.0;
+    float fc = 2000.0;
 
     h_bpf = generate_fir_bpf(fc, tw, fc_lpf);
 
@@ -96,9 +96,10 @@ float * generate_fir_lpf(float fc, float tw){
     int n;
 
     static float h_lpf[L];
+    int bias = L/2; // Calculate bias to subtract from n since it starts at 0
 
     // Calculate h for the FIR lowpass filter
-    for(n = 0; n<L; n++) h_lpf[n] = sin(n*omega_c)/(n*M_PI);
+    for(n = 0; n<L; n++) h_lpf[n] = sin((n-bias)*omega_c)/((n-bias)*M_PI);
 
     //////// NOTE: I'm fairly certain the above line needs to have a bias applied to n
 
@@ -240,8 +241,8 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
 {
     // Assume our output range will have a frequency spread of 10Hz - 10kHz
     // Want passband width of ~1kHz ... Lowpass prototype width of 500Hz
-    // Center frequency is variable in the final "Wah" effect, but for now I'm fixing it at 5kHz
-    // Transition width of 500Hz
+    // Center frequency is variable in the final "Wah" effect, but for now I'm fixing it at 2kHz
+    // Transition width of 2kHz
 
 
     // Currently this does not work... We'll need to try testing the lpf first
