@@ -15,7 +15,9 @@
 
 //defines:
 #define xdc__strict //suppress typedef warnings
-#define buffer_length 10000
+#define buffer_length 9000
+#define fs 48000 // Sampling Frequency - 48kHz
+#define L 331 // Hamming window length for tw = 500Hz
 
 //includes:
 #include <xdc/std.h>
@@ -36,6 +38,7 @@ volatile Bool isrFlag = FALSE; //flag used by idle function
 volatile Bool isrFlag2 = FALSE; // MP - flag used by idle2 function
 volatile UInt i = 0; // MP - Seconds counter
 volatile Int tickCount = 0; //counter incremented by timer interrupt
+volatile float *h_bpf;
 
 /* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
@@ -49,6 +52,10 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m);
+float * generate_fir_lpf(float fc, float tw);
+float * generate_fir_bpf(float fc, float tw, float fc_lpf);
+int calc_fir_len(float tw);
+void audioIn_hwi(void);
 void audioOut_swi(void);
 
 /* ======== main ======== */
@@ -58,6 +65,14 @@ Int main()
 
     // Set audio_effect function pointer
     audio_effect = &effect_chorus;
+    //audio_effect = &effect_bitCrush;
+
+    float tw = 500.0;
+//    int L = calc_fir_len(tw);
+    float fc_lpf = 500.0;
+    float fc = 5000.0;
+
+    h_bpf = generate_fir_bpf(fc, tw, fc_lpf);
 
     //initialization:
     DeviceInit(); //initialize processor
@@ -65,6 +80,52 @@ Int main()
     //jump to RTOS (does not return):
     BIOS_start();
     return(0);
+}
+
+//int calc_fir_len(float tw){
+//    // Calculate L for Hamming Window
+//    float L_f = 3.44 * fs/tw;
+//    int L = (int)ceilf(L_f);
+//    if (L % 2 == 0) L++;
+//
+//    return L;
+//}
+
+float * generate_fir_lpf(float fc, float tw){
+    float omega_c = (2*M_PI)*(fc+tw/2)/fs;
+    int n;
+
+    static float h_lpf[L];
+
+    // Calculate h for the FIR lowpass filter
+    for(n = 0; n<L; n++) h_lpf[n] = sin(n*omega_c)/(n*M_PI);
+
+    //////// NOTE: I'm fairly certain the above line needs to have a bias applied to n
+
+    return h_lpf;
+}
+
+float * generate_fir_bpf(float fc, float tw, float fc_lpf){
+    float w_n;
+    int n;
+    float M_2PI = 2*M_PI; // Pre-calculate 2*pi
+    float omega_0 = M_2PI*fc/fs; // Pre-calculate center frequency of BPF
+    float *h_lpf;
+    static float h_bpf[L];
+
+    h_lpf = generate_fir_lpf(fc_lpf, tw);
+
+    int bias = L/2; // Calculate bias to subtract from n since it starts at 0
+
+    for(n = 0; n < L; n++){
+        // Calculate Hamming window
+        w_n = 0.54 + 0.46*cos(M_2PI*(float)(n-bias)/(L-1));
+
+        // Calculate h for the FIR bandpass filter
+        h_bpf[n] = *(h_lpf+n)*w_n*cos((float)(n-bias)*omega_0);
+    }
+
+    return h_bpf;
 }
 
 /* ======== myTickFxn ======== */
@@ -127,10 +188,9 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m)
 //
 // Parameters:
 // *x - The address of the sample to add delay to.
-// m - The desired number of elements of delay.
+// m - The amount of delay to add in samples. (order of 1000s of samples)
 void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m)
 {
-    m = 1000;
     float g = 0.25; // This will need to be adjusted by effect knob
     UInt16 delay_i;
 
@@ -153,10 +213,9 @@ void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m)
 //
 // Parameters:
 // *x - The address of the sample to add echo to.
-// m - The amount of echo to add in samples
+// m - The amount of delay to add in samples (order of 10 to 100s of samples)
 void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
 {
-    float g = 1.0;
     UInt16 delay_i;
 
     if(m >= buffer_length - buffer_i){
@@ -167,7 +226,7 @@ void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
     }
 
     // This should be correct...
-    *y = *x + (UInt16)(g*sample_buffer[delay_i]);
+    *y = *x + sample_buffer[delay_i];
 }
 
 /* ======== effect_bandpass ======== */
@@ -179,40 +238,20 @@ void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
 // m - The amount of echo to add in samples
 void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
 {
-    // Assume our our output range will have a frequency spread of 10Hz - 10kHz
+    // Assume our output range will have a frequency spread of 10Hz - 10kHz
     // Want passband width of ~1kHz ... Lowpass prototype width of 500Hz
     // Center frequency is variable in the final "Wah" effect, but for now I'm fixing it at 5kHz
-    //Transition width of 500Hz
+    // Transition width of 500Hz
 
-    //Bandpass center frequency
-    UInt fc = 5000;
 
-    // Sampling Frequency
-    UInt16 fs = 40000;                      //CHECK THIS, NOT SURE WHAT THE SAMPLING RATE IS AT
-
-    // Calculate L
-    float L_f = 3.44 * fs/500;
-    int L = (int)ceilf(L_f);
-    if (L % 2 == 0) L++;
-
-    //h_bpf = h_lpf * w_n * cos(n*omega_0)
-
-    float omega_0 = 2*pi*fc/fs;
-    float omega_c = 2*pi*((500+1000)/2)/fs;
-
-    // Lowpass prototype
-    //float h_lpf = sin(n * omega_c)/(buffer_i * pi);
+    // We are effectively delaying the input samples by floor(L/2) samples to make the FIR filter response causal
 
 
 
-
-
-    // Calculate Hamming window
-    //float w_n = 0.54 + 0.46*cos(2*pi*buffer_i/(L-1));
 }
 
 
-void audioIn_hwi(Void)
+void audioIn_hwi(void)
 {
     // Store sample sample in the next buffer slot
     sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
@@ -220,28 +259,25 @@ void audioIn_hwi(Void)
     //audioOut_swi(); // Just call swi directly for now...
     //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // pass through test to DAC
 
-    // Circular buffer indexing
-    if(buffer_i >= buffer_length - 1) buffer_i = 0;
-    else buffer_i++;
-
     AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 
     // Set SWI post indicating new sample has been captured
     Swi_post(audioOut_swi_handle);
-//
 }
 
 
-void audioOut_swi(Void){
-    // "For predictable behavior of DAC, consecutive writes should
-    // be spaced apart according to settling time." - datasheet (can't remember which...)
+void audioOut_swi(void){
     UInt16 y = 0;
 
-    // Test calling bitCrush function, compressing to 12 bits (arbitrarily)
-    audio_effect(&y, &sample_buffer[buffer_i], 12);
+    // Calling audio_effect function to perform DSP
+    audio_effect(&y, &sample_buffer[buffer_i], 13);
+
+    // Circular buffer indexing
+    if(buffer_i >= buffer_length - 1) buffer_i = 0;
+    else buffer_i++;
 
     // Output on DAC, shift down to 12-bit resolution
-    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4;
+    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // audio pass-through for debug
     DacbRegs.DACVALS.bit.DACVALS = y >> 4;
 }
 
