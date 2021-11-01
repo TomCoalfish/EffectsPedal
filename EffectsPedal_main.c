@@ -64,7 +64,7 @@ Int main()
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
     // Set audio_effect function pointer
-    audio_effect = &effect_chorus;
+    audio_effect = &effect_bandpass;
     //audio_effect = &effect_bitCrush;
 
     float tw = 500.0;
@@ -244,9 +244,21 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
     // Transition width of 500Hz
 
 
-    // We are effectively delaying the input samples by floor(L/2) samples to make the FIR filter response causal
+    // Currently this does not work... We'll need to try testing the lpf first
+    UInt16 n;
+    UInt16 delay_i;
 
+    for(n = 0; n < L; n++){
 
+        if(n >= buffer_length - buffer_i){
+            delay_i = n - (buffer_length - buffer_i);
+        }
+        else{
+            delay_i = buffer_i + n;
+        }
+
+        *y += (float)sample_buffer[delay_i]*(*(h_bpf + n));
+    }
 
 }
 
