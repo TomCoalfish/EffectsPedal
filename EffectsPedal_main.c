@@ -24,11 +24,13 @@
 #include <xdc/runtime/System.h>
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Swi.h>
+#include <ti/sysbios/knl/Semaphore.h>
 #include <Headers/F2837xD_device.h>
 #include <math.h>
 
 //Swi Handle defined in .cfg file:
 extern const Swi_Handle audioOut_swi_handle;
+extern const Semaphore_Handle task0;
 
 //function prototypes:
 extern void DeviceInit(void);
@@ -101,7 +103,7 @@ float * generate_fir_lpf(float fc, float tw){
     // Calculate h for the FIR lowpass filter
     for(n = 0; n<L; n++) h_lpf[n] = sin((n-bias)*omega_c)/((n-bias)*M_PI);
 
-    //////// NOTE: I'm fairly certain the above line needs to have a bias applied to n
+    //////// NOTE: I'm fairly certain the above line needs to have a bias applied to n due to causality
 
     return h_lpf;
 }
@@ -132,36 +134,34 @@ float * generate_fir_bpf(float fc, float tw, float fc_lpf){
 /* ======== myTickFxn ======== */
 //Timer tick function that increments a counter and sets the isrFlag
 //Entered 100 times per second if PLL and Timer set up correctly
+//Posts the task0's semaphore 20 times per second.
 void myTickFxn(UArg arg)
 {
     tickCount++; //increment the tick counter
+
+    // 20 times per second
     if(tickCount % 5 == 0) {
-        isrFlag = TRUE; //tell idle thread to do something 20 times per second
+        //Semaphore_post(task0); // Post semaphore for task0
     }
-    if(tickCount % 100 == 0){ // MP
-        isrFlag2 = TRUE; // MP
-    } // MP
+
+    // Twice per second
+    if(tickCount % 50 == 0){
+        isrFlag = TRUE; //tell idle thread to toggle LED
+    }
 }
 
-/* ======== myIdleFxn ======== */
-//Idle function that is called repeatedly from RTOS
-void myIdleFxn(Void)
+/* ======== heartbeatIdleFxn ======== */
+// Idle function that is called repeatedly from RTOS
+// Toggles on-board LED to indicate that program is running
+void heartbeatIdleFxn(Void)
 {
    if(isrFlag == TRUE) {
        isrFlag = FALSE;
-       //toggle blue LED:
+
+       //toggle blue LED
        GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
    }
 }
-
-void myIdleFxn2(Void) // MP
-{ // MP
-    if(isrFlag2 == TRUE){ // MP
-        isrFlag2 = FALSE; // MP
-        System_printf("Time (sec) = %u \n", i); // MP
-        i++; // MP
-    } // MP
-} // MP
 
 /* ======== effect_bitCrush ======== */
 // Reduces the resolution of x to the specified
@@ -264,21 +264,35 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
 }
 
 
+/* ======== audioIn_hwi ======== */
+// Hardware interrupt for the ADC measuring the
+// audio input voltage. Stores result in circular buffer.
 void audioIn_hwi(void)
 {
     // Store sample sample in the next buffer slot
     sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
-    //audioOut_swi(); // Just call swi directly for now...
-    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // pass through test to DAC
-
-    AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
-
     // Set SWI post indicating new sample has been captured
     Swi_post(audioOut_swi_handle);
+
+    AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
 }
 
+/* ======== effectIn1_hwi ======== */
+// Hardware interrupt for the ADC measuring the
+// effect knob output voltage.
+void effectIn1_hwi(void){
+    //effect1 = AdcaResultRegs.ADCRESULT0; // Get reading from ADC SOC0
 
+    // Clear interrupt flag
+    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
+}
+
+/* ======== audioOut_swi ======== */
+// Software interrupt called when a new
+// audio sample has been added to the buffer.
+// Processes audio sample and outputs result
+// on audio output DAC.
 void audioOut_swi(void){
     UInt16 y = 0;
 
@@ -294,3 +308,22 @@ void audioOut_swi(void){
     DacbRegs.DACVALS.bit.DACVALS = y >> 4;
 }
 
+
+/* ======== gpio_effect_task ======== */
+// This function is the task that runs periodically to check the gpio
+// inputs and change the current effect function based on the input selected.
+void gpio_effect_task(void){
+
+    // loop forever
+    while(TRUE){
+        // Wait for semaphore post from timer... COMMENTED OUT FOR NOW
+        Semaphore_pend(task0, BIOS_WAIT_FOREVER);
+        // Need to also wait for post from Swi... NOT IMPLEMENTED YET
+
+        // Check GPIO inputs to see which effect switch is active
+        if(GpioDataRegs.GPBDAT.bit.GPIO32) audio_effect = &effect_bandpass;
+        else if(GpioDataRegs.GPCDAT.bit.GPIO67) audio_effect = &effect_bitCrush;
+        else if(GpioDataRegs.GPDDAT.bit.GPIO111) audio_effect = &effect_chorus;
+        else if(GpioDataRegs.GPADAT.bit.GPIO22) audio_effect = &effect_echo;
+    }
+}
