@@ -158,8 +158,8 @@ void heartbeatIdleFxn(Void)
    if(isrFlag == TRUE) {
        isrFlag = FALSE;
 
-       //toggle blue LED
-       GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
+       //toggle red LED
+       GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
    }
 }
 
@@ -282,10 +282,12 @@ void audioIn_hwi(void)
 // Hardware interrupt for the ADC measuring the
 // effect knob output voltage.
 void effectIn1_hwi(void){
-    //effect1 = AdcaResultRegs.ADCRESULT0; // Get reading from ADC SOC0
+    UInt16 effect1_result;
+
+    effect1_result = AdccResultRegs.ADCRESULT0; // Get reading from ADC SOC0
 
     // Clear interrupt flag
-    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
+    AdccRegs.ADCINTFLGCLR.bit.ADCINT2 = 1;
 }
 
 /* ======== audioOut_swi ======== */

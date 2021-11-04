@@ -78,6 +78,23 @@ EALLOW;
     //---------------------------------------------------------------
     // INITIALIZE A-D ---- EFFECT KNOB
     //---------------------------------------------------------------
+    CpuSysRegs.PCLKCR13.bit.ADC_C = 1; //enable A-D clock for ADC-C
+    AdccRegs.ADCCTL2.bit.PRESCALE = 0x0; // Clock prescale = 1.0
+    AdccRegs.ADCCTL2.bit.SIGNALMODE = 0; // fixed mode
+    AdccRegs.ADCCTL2.bit.RESOLUTION = 0; // 12-bit resolution
+    AdccRegs.ADCCTL1.bit.ADCPWDNZ = 1;
+
+    //generate INT pulse on end of conversion:
+    AdccRegs.ADCCTL1.bit.INTPULSEPOS = 1;
+
+    //wait 1 ms after power-up before using the ADC:
+    DelayUs(1000);
+
+    AdccRegs.ADCSOC0CTL.bit.TRIGSEL = 1; //trigger source = CPU1 Timer 0 - Effect switch timer (100Hz)
+    AdccRegs.ADCSOC0CTL.bit.CHSEL = 2; // set SOC0 to sample C2 (pin 27, vector ID 201)
+    AdccRegs.ADCSOC0CTL.bit.ACQPS = 139; //set SOC0 window to 139 SYSCLK cycles
+    AdccRegs.ADCINTSEL1N2.bit.INT2SEL = 0; //connect interrupt ADCINT1 to EOC0
+    AdccRegs.ADCINTSEL1N2.bit.INT2E = 1; //enable interrupt ADCINT1
 
 
 EDIS;
