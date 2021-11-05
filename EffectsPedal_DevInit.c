@@ -23,11 +23,11 @@ EALLOW;
     //initialize GPIO lines:
     GpioCtrlRegs.GPAMUX2.bit.GPIO31 = 0; //D10 (blue LED)
     GpioCtrlRegs.GPADIR.bit.GPIO31 = 1; // Output
-    GpioDataRegs.GPACLEAR.bit.GPIO31 = 1;
+    GpioDataRegs.GPASET.bit.GPIO31 = 1; // Turn off BLUE LED
 
     GpioCtrlRegs.GPBMUX1.bit.GPIO34 = 0; //D9 (red LED)
     GpioCtrlRegs.GPBDIR.bit.GPIO34 = 1; // Output
-    GpioDataRegs.GPBCLEAR.bit.GPIO34 = 1;
+    GpioDataRegs.GPBCLEAR.bit.GPIO34 = 1; // Turn on RED LED
 
     // GPIO32 - Pin 2
     GpioCtrlRegs.GPBMUX1.bit.GPIO32 = 0;

@@ -37,9 +37,7 @@ extern void DeviceInit(void);
 
 //declare global variables:
 volatile Bool isrFlag = FALSE; //flag used by idle function
-volatile Bool isrFlag2 = FALSE; // MP - flag used by idle2 function
-volatile UInt i = 0; // MP - Seconds counter
-volatile Int tickCount = 0; //counter incremented by timer interrupt
+volatile UInt tickCount = 0; //counter incremented by timer interrupt
 volatile float *h_bpf;
 
 /* ---- Declare Buffer ---- */
@@ -66,8 +64,8 @@ Int main()
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
     // Set audio_effect function pointer
-    audio_effect = &effect_bandpass;
-    //audio_effect = &effect_bitCrush;
+    //audio_effect = &effect_bandpass;
+    audio_effect = &effect_bitCrush;
 
     float tw = 2000.0;
 //    int L = calc_fir_len(tw);
@@ -140,9 +138,9 @@ void myTickFxn(UArg arg)
     tickCount++; //increment the tick counter
 
     // 20 times per second
-    if(tickCount % 5 == 0) {
+    //if(tickCount % 5 == 0) {
         //Semaphore_post(task0); // Post semaphore for task0
-    }
+    //}
 
     // Twice per second
     if(tickCount % 50 == 0){
@@ -153,14 +151,14 @@ void myTickFxn(UArg arg)
 /* ======== heartbeatIdleFxn ======== */
 // Idle function that is called repeatedly from RTOS
 // Toggles on-board LED to indicate that program is running
-void heartbeatIdleFxn(Void)
+Void heartbeatIdleFxn(Void)
 {
-   if(isrFlag == TRUE) {
+    if(isrFlag == TRUE) {
        isrFlag = FALSE;
 
-       //toggle red LED
+       //toggle red LED to indicate program is still running
        GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
-   }
+    }
 }
 
 /* ======== effect_bitCrush ======== */
