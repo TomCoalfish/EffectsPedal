@@ -138,9 +138,9 @@ void myTickFxn(UArg arg)
     tickCount++; //increment the tick counter
 
     // 20 times per second
-    //if(tickCount % 5 == 0) {
-        //Semaphore_post(task0); // Post semaphore for task0
-    //}
+    if(tickCount % 5 == 0) {
+        Semaphore_post(task0); // Post semaphore for task0
+    }
 
     // Twice per second
     if(tickCount % 50 == 0){
@@ -314,16 +314,17 @@ void audioOut_swi(void){
 // inputs and change the current effect function based on the input selected.
 void gpio_effect_task(void){
 
-    // loop forever
-    while(TRUE){
-        // Wait for semaphore post from timer... COMMENTED OUT FOR NOW
-        Semaphore_pend(task0, BIOS_WAIT_FOREVER);
-        // Need to also wait for post from Swi... NOT IMPLEMENTED YET
+    int effect_num = 0;
 
-        // Check GPIO inputs to see which effect switch is active
-        if(GpioDataRegs.GPBDAT.bit.GPIO32) audio_effect = &effect_bandpass;
-        else if(GpioDataRegs.GPCDAT.bit.GPIO67) audio_effect = &effect_bitCrush;
-        else if(GpioDataRegs.GPDDAT.bit.GPIO111) audio_effect = &effect_chorus;
-        else if(GpioDataRegs.GPADAT.bit.GPIO22) audio_effect = &effect_echo;
-    }
+    // Wait for semaphore post from timer...
+    Semaphore_pend(task0, BIOS_WAIT_FOREVER);
+    // Need to also wait for post from Swi... NOT IMPLEMENTED YET
+
+    // Check GPIO inputs to see which effect switch is active
+    if(GpioDataRegs.GPBDAT.bit.GPIO32) effect_num = 1;//audio_effect = &effect_bandpass;
+    else if(GpioDataRegs.GPCDAT.bit.GPIO67) effect_num = 2;//audio_effect = &effect_bitCrush;
+    else if(GpioDataRegs.GPDDAT.bit.GPIO111) effect_num = 3; //audio_effect = &effect_chorus;
+    else if(GpioDataRegs.GPADAT.bit.GPIO22) effect_num = 4; //audio_effect = &effect_echo;
+
+    effect_num=effect_num;
 }
