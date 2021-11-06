@@ -1,4 +1,4 @@
-// Filename:            Lab2Idle_main.c
+// Filename:            EffectsPedal_main.c
 //
 // Description:         This file has a main, timer, and idle function for SYS/BIOS application.
 //
@@ -10,8 +10,7 @@
 //
 // Modified By:         Matthew Peeters, A01014378
 //                      Kieran Bako, A01028276
-// Modification Date:   2021-10-13
-// Added myIdleFxn2 to print to print to the SysMin OutputBuffer every second.
+// Modification Date:   2021-11-06
 
 //defines:
 #define xdc__strict //suppress typedef warnings
@@ -25,28 +24,34 @@
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Swi.h>
 #include <ti/sysbios/knl/Semaphore.h>
+#include <ti/sysbios/knl/Task.h>
 #include <Headers/F2837xD_device.h>
 #include <math.h>
 
 //Swi Handle defined in .cfg file:
 extern const Swi_Handle audioOut_swi_handle;
-extern const Semaphore_Handle task0;
 
-//function prototypes:
-extern void DeviceInit(void);
+//Tsk Handle defined in .cfg file:
+extern const Task_Handle task0;
 
-//declare global variables:
+//Semaphores defined in .cfg file:
+extern const Semaphore_Handle sem0;
+
+//Declare global variables:
 volatile Bool isrFlag = FALSE; //flag used by idle function
 volatile UInt tickCount = 0; //counter incremented by timer interrupt
 volatile float *h_bpf;
+
+volatile int effect_num = 0;
 
 /* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
 // throws an error due to how the RAM is addressed
 volatile Uint16 sample_buffer[buffer_length];
-
 volatile Uint16 buffer_i = 0; // Current index of buffer
 
+//function prototypes:
+extern void DeviceInit(void);
 void (*audio_effect)(UInt *, volatile UInt16 *, UInt16); // Declare pointer to function
 void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m);
@@ -129,22 +134,24 @@ float * generate_fir_bpf(float fc, float tw, float fc_lpf){
     return h_bpf;
 }
 
-/* ======== myTickFxn ======== */
+/* ======== tickFxn ======== */
 //Timer tick function that increments a counter and sets the isrFlag
 //Entered 100 times per second if PLL and Timer set up correctly
 //Posts the task0's semaphore 20 times per second.
-void myTickFxn(UArg arg)
+void tickFxn(UArg arg)
 {
     tickCount++; //increment the tick counter
 
     // 20 times per second
     if(tickCount % 5 == 0) {
-        Semaphore_post(task0); // Post semaphore for task0
+        // Post semaphore for task0 (gpio_effect_task)
+        Semaphore_post(sem0);
     }
 
     // Twice per second
     if(tickCount % 50 == 0){
-        isrFlag = TRUE; //tell idle thread to toggle LED
+        // Tell idle thread to toggle heart-beat LED
+        isrFlag = TRUE;
     }
 }
 
@@ -314,17 +321,18 @@ void audioOut_swi(void){
 // inputs and change the current effect function based on the input selected.
 void gpio_effect_task(void){
 
-    int effect_num = 0;
+    while(TRUE){
+        // Wait for semaphore post from timer...
+        Semaphore_pend(sem0, BIOS_WAIT_FOREVER);
 
-    // Wait for semaphore post from timer...
-    Semaphore_pend(task0, BIOS_WAIT_FOREVER);
-    // Need to also wait for post from Swi... NOT IMPLEMENTED YET
+        // In theory there is no need to wait for Swi to post
+        // a semaphore because it will always pre-empt gpio_effect_task
+        // and is read-only for the audio_effect function.
 
-    // Check GPIO inputs to see which effect switch is active
-    if(GpioDataRegs.GPBDAT.bit.GPIO32) effect_num = 1;//audio_effect = &effect_bandpass;
-    else if(GpioDataRegs.GPCDAT.bit.GPIO67) effect_num = 2;//audio_effect = &effect_bitCrush;
-    else if(GpioDataRegs.GPDDAT.bit.GPIO111) effect_num = 3; //audio_effect = &effect_chorus;
-    else if(GpioDataRegs.GPADAT.bit.GPIO22) effect_num = 4; //audio_effect = &effect_echo;
-
-    effect_num=effect_num;
+        // Check GPIO inputs to see which effect switch is active
+        if(GpioDataRegs.GPBDAT.bit.GPIO32) effect_num = 1;//audio_effect = &effect_bandpass;
+        else if(GpioDataRegs.GPCDAT.bit.GPIO67) effect_num = 2;//audio_effect = &effect_bitCrush;
+        else if(GpioDataRegs.GPDDAT.bit.GPIO111) effect_num = 3; //audio_effect = &effect_chorus;
+        else if(GpioDataRegs.GPADAT.bit.GPIO22) effect_num = 4; //audio_effect = &effect_echo;
+    }
 }

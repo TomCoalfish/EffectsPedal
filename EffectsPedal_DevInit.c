@@ -1,6 +1,6 @@
-// Filename:            HwiExample_DeviceInit.c
+// Filename:            EffectsPedal_DevInit.c
 //
-// Description:	        Initialization code for Hwi Example
+// Description:	        Initialization code for Effects Pedal project.
 //
 // Version:             1.0
 //
@@ -10,6 +10,8 @@
 //
 // Modified By:         Matthew Peeters, A01014378
 //                      Kieran Bako, A01028276
+//
+// Modification Date:   2021-11-06
 //
 // Date:                19Oct2021
 
