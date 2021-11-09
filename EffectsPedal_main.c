@@ -11,7 +11,6 @@
 // Modified By:         Matthew Peeters, A01014378
 //                      Kieran Bako, A01028276
 // Modification Date:   2021-11-06
-
 //defines:
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 9000
@@ -19,6 +18,8 @@
 #define L 83 // Hamming window length for tw = 2kHz
 
 //includes:
+
+
 #include <xdc/std.h>
 #include <xdc/runtime/System.h>
 #include <ti/sysbios/BIOS.h>
@@ -27,6 +28,8 @@
 #include <ti/sysbios/knl/Task.h>
 #include <Headers/F2837xD_device.h>
 #include <math.h>
+
+//#include <bandpass_coeffs.h>
 
 //Swi Handle defined in .cfg file:
 extern const Swi_Handle audioOut_swi_handle;
@@ -72,12 +75,12 @@ Int main()
     //audio_effect = &effect_bandpass;
     audio_effect = &effect_bitCrush;
 
-    float tw = 2000.0;
+    //float tw = 2000.0;
 //    int L = calc_fir_len(tw);
-    float fc_lpf = 500.0;
-    float fc = 2000.0;
+    //float fc_lpf = 500.0;
+    //float fc = 2000.0;
 
-    h_bpf = generate_fir_bpf(fc, tw, fc_lpf);
+    //h_bpf = generate_fir_bpf(fc, tw, fc_lpf);
 
     //initialization:
     DeviceInit(); //initialize processor
@@ -254,6 +257,8 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
     UInt16 n;
     UInt16 delay_i;
 
+    //float h[length(H_TEST)] = H_TEST;
+
     for(n = 0; n < L; n++){
 
         if(n >= buffer_length - buffer_i){
@@ -263,7 +268,8 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
             delay_i = buffer_i + n;
         }
 
-        *y += (float)sample_buffer[delay_i]*(*(h_bpf + n));
+
+        //*y += ((float)sample_buffer[delay_i] * H_TEST[n]);
     }
 
 }
