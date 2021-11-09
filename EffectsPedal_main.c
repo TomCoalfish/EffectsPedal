@@ -29,7 +29,7 @@
 #include <Headers/F2837xD_device.h>
 #include <math.h>
 
-//#include <bandpass_coeffs.h>
+#include <bandpass_coeffs.h>
 
 //Swi Handle defined in .cfg file:
 extern const Swi_Handle audioOut_swi_handle;
@@ -269,7 +269,7 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
         }
 
 
-        //*y += ((float)sample_buffer[delay_i] * H_TEST[n]);
+        *y += ((float)sample_buffer[delay_i] * H_TEST[n]);
     }
 
 }
