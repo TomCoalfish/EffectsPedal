@@ -14,7 +14,6 @@
 //defines:
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 9000
-#define fs 48000 // Sampling Frequency - 48kHz
 #define N_bits 12 // Bit resolution of input samples
 
 //includes:
@@ -67,6 +66,9 @@ Int main()
     // Set audio_effect function pointer
     audio_effect = &effect_bandpass;
     //audio_effect = &effect_bitCrush;
+
+    // Initialize WAHWAH bandpass window array
+    h = h_arrays[0];
 
     //initialization:
     DeviceInit(); //initialize processor
@@ -186,16 +188,9 @@ void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
 // Parameters:
 // *y - The address of the result
 // *x - The address of the incoming sample
-// m - The amount of echo to add in samples
+// m - Currently unused...
 void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
 {
-    // Assume our output range will have a frequency spread of 10Hz - 10kHz
-    // Want passband width of ~1kHz ... Lowpass prototype width of 500Hz
-    // Center frequency is variable in the final "Wah" effect, but for now I'm fixing it at 2kHz
-    // Transition width of 2kHz
-
-
-    // Currently this does not work... We'll need to try testing the lpf first
     UInt16 n;
     UInt16 delay_i;
 
@@ -209,7 +204,7 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
         }
 
 
-        *y += ((Float)sample_buffer[delay_i] * h[n]);
+        *y += ((Float)sample_buffer[delay_i] * *(h+n));
     }
 
 }
