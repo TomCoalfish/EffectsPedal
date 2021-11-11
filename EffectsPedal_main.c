@@ -1,16 +1,19 @@
 // Filename:            EffectsPedal_main.c
 //
-// Description:         This file has a main, timer, and idle function for SYS/BIOS application.
+// Description:         This file utilizes Hwi, Swi, Tsk, and Idle threads from the TI RTOS
+//                      to create a guitar effects pedal using audio DSP.
+//                      A signal from an electric guitar is sampled using an on-board 12-bit ADC,
+//                      processed according to the desired effect and effect magnitude, then output
+//                      from an on-board 12-bit DAC.
 //
 // Target:              TMS320F28379D
 //
-// Author:              DR
-//
-// Date:                Oct. 12, 2021
-//
-// Modified By:         Matthew Peeters, A01014378
+// Authors:             Matthew Peeters, A01014378
 //                      Kieran Bako, A01028276
-// Modification Date:   2021-11-06
+//
+// Date:                2021-11-06
+
+
 //defines:
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 9000
@@ -29,6 +32,7 @@
 
 //Swi Handle defined in .cfg file:
 extern const Swi_Handle audioOut_swi_handle;
+extern const Swi_Handle effect_swi_handle;
 
 //Tsk Handle defined in .cfg file:
 extern const Task_Handle task0;
@@ -37,10 +41,12 @@ extern const Task_Handle task0;
 extern const Semaphore_Handle sem0;
 
 //Declare global variables:
-volatile Bool isrFlag = FALSE; //flag used by idle function
-volatile UInt tickCount = 0; //counter incremented by timer interrupt
-
-volatile int effect_num = 0;
+volatile Bool isrFlag = FALSE; // Flag used by idle function
+volatile Bool wahFlag = FALSE; // Flag used by wah effect to increment BPF frequency
+volatile UInt16 wahIndex = 0; // Index used by wah effect to increment BPF
+volatile Int16 wahDirection = 1; // Direction to increment BPF frequency
+volatile UInt tickCount = 0; // Counter incremented by timer interrupt
+volatile UInt16 effect1_result; // Current position of Effect potentiometer
 
 /* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
@@ -50,12 +56,13 @@ volatile Uint16 buffer_i = 0; // Current index of buffer
 
 //function prototypes:
 extern void DeviceInit(void);
-void (*audio_effect)(UInt *, volatile UInt16 *, UInt16); // Declare pointer to function
-void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m);
-void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m);
-void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m);
-void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m);
+void (*audio_effect)(UInt *, volatile UInt16 *); // Declare pointer to effect function
+void effect_bitCrush(UInt16 *y, volatile UInt16 *x);
+void effect_echo(UInt16 *y, volatile UInt16 *x);
+void effect_chorus(UInt16 *y, volatile UInt16 *x);
+void effect_bandpass(UInt16 *y, volatile UInt16 *x);
 void audioIn_hwi(void);
+void effectIn1_hwi(void);
 void audioOut_swi(void);
 
 /* ======== main ======== */
@@ -70,8 +77,8 @@ Int main()
     // Initialize WAHWAH bandpass window array
     h = h_arrays[0];
 
-    //initialization:
-    DeviceInit(); //initialize processor
+    // Initialize processor
+    DeviceInit();
 
     //jump to RTOS (does not return):
     BIOS_start();
@@ -98,6 +105,11 @@ void tickFxn(UArg arg)
         // Tell idle thread to toggle heart-beat LED
         isrFlag = TRUE;
     }
+
+
+    if(tickCount % 20 == 0){
+        wahFlag = TRUE;
+    }
 }
 
 /* ======== heartbeatIdleFxn ======== */
@@ -120,10 +132,13 @@ Void heartbeatIdleFxn(Void)
 // N_bits is the bit resolution of the sample (16- or 12-bit)
 //
 // Parameters:
+// *y - The address of the sample to output.
 // *x - The address of the sample to reduce the resolution.
 // m - The desired number of bit resolution.
-void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m)
+void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
 {
+    UInt16 m = 12;
+
     // Calculate number of bits to shift by based on UInt16 resolution from ADC
     UInt16 shift = N_bits - m;
 
@@ -140,10 +155,14 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m)
 // with m elements of delay.
 //
 // Parameters:
+// *y - The address of the sample to output.
 // *x - The address of the sample to add delay to.
 // m - The amount of delay to add in samples. (order of 1000s of samples)
-void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m)
+void effect_echo(UInt16 *y, volatile UInt16 *x)
 {
+
+    UInt16 m = 1000;
+
     float g = 0.25; // This will need to be adjusted by effect knob
     UInt16 delay_i;
 
@@ -165,10 +184,14 @@ void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m)
 // Does not add this to the buffer!
 //
 // Parameters:
+// *y - The address of the sample to output.
 // *x - The address of the sample to add echo to.
 // m - The amount of delay to add in samples (order of 10 to 100s of samples)
-void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
+void effect_chorus(UInt16 *y, volatile UInt16 *x)
 {
+
+    UInt16 m = 50;
+
     UInt16 delay_i;
 
     if(m >= buffer_length - buffer_i){
@@ -178,7 +201,6 @@ void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
         delay_i = buffer_i + m;
     }
 
-    // This should be correct...
     *y = *x + sample_buffer[delay_i];
 }
 
@@ -189,10 +211,25 @@ void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m)
 // *y - The address of the result
 // *x - The address of the incoming sample
 // m - Currently unused...
-void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
+void effect_bandpass(UInt16 *y, volatile UInt16 *x)
 {
     UInt16 n;
     UInt16 delay_i;
+
+    if(wahFlag == TRUE){
+        wahFlag = FALSE;
+
+        h = h_arrays[wahIndex];
+
+        // If the wah index is greater than or equal
+        // to the number of arrays
+        if(wahIndex >= NUM_BPF - 1) wahDirection = -1;
+
+        // Otherwise, if the wah index reaches zero
+        else if(wahIndex == 0) wahDirection = 1;
+
+        wahIndex += wahDirection;
+    }
 
     for(n = 0; n < N; n++){
 
@@ -218,7 +255,7 @@ void audioIn_hwi(void)
     // Store sample sample in the next buffer slot
     sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
-    // Set SWI post indicating new sample has been captured
+    // Post Swi indicating new sample has been captured
     Swi_post(audioOut_swi_handle);
 
     AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
@@ -228,9 +265,8 @@ void audioIn_hwi(void)
 // Hardware interrupt for the ADC measuring the
 // effect knob output voltage.
 void effectIn1_hwi(void){
-    UInt16 effect1_result;
-
-    effect1_result = AdccResultRegs.ADCRESULT0; // Get reading from ADC SOC0
+    // Get reading from ADC SOC0
+    effect1_result = AdccResultRegs.ADCRESULT0;
 
     // Clear interrupt flag
     AdccRegs.ADCINTFLGCLR.bit.ADCINT2 = 1;
@@ -245,7 +281,7 @@ void audioOut_swi(void){
     UInt16 y = 0;
 
     // Calling audio_effect function to perform DSP
-    audio_effect(&y, &sample_buffer[buffer_i], 12);
+    audio_effect(&y, &sample_buffer[buffer_i]);
 
     //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i]; // audio pass-through for debug
 
@@ -257,11 +293,12 @@ void audioOut_swi(void){
     DacbRegs.DACVALS.bit.DACVALS = y;
 }
 
-
 /* ======== gpio_effect_task ======== */
 // This function is the task that runs periodically to check the gpio
 // inputs and change the current effect function based on the input selected.
 void gpio_effect_task(void){
+
+    UInt16 effect_num = 0;
 
     while(TRUE){
         // Wait for semaphore post from timer...

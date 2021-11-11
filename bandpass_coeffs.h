@@ -20,6 +20,9 @@
 // Define the window size used for each array
 #define N 56
 
+// Define the number of BPF arrays available
+#define NUM_BPF 10
+
 // Instantiate FIR coefficient arrays, each with
 // a different bandpass center frequency
 extern Float h_1k[];
