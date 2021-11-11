@@ -15,11 +15,9 @@
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 9000
 #define fs 48000 // Sampling Frequency - 48kHz
-#define L 83 // Hamming window length for tw = 2kHz
+#define N_bits 12 // Bit resolution of input samples
 
 //includes:
-
-
 #include <xdc/std.h>
 #include <xdc/runtime/System.h>
 #include <ti/sysbios/BIOS.h>
@@ -28,7 +26,6 @@
 #include <ti/sysbios/knl/Task.h>
 #include <Headers/F2837xD_device.h>
 #include <math.h>
-
 #include <bandpass_coeffs.h>
 
 //Swi Handle defined in .cfg file:
@@ -43,7 +40,6 @@ extern const Semaphore_Handle sem0;
 //Declare global variables:
 volatile Bool isrFlag = FALSE; //flag used by idle function
 volatile UInt tickCount = 0; //counter incremented by timer interrupt
-volatile float *h_bpf;
 
 volatile int effect_num = 0;
 
@@ -60,9 +56,6 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_echo(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_chorus(UInt16 *y, volatile UInt16 *x, UInt16 m);
 void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m);
-float * generate_fir_lpf(float fc, float tw);
-float * generate_fir_bpf(float fc, float tw, float fc_lpf);
-int calc_fir_len(float tw);
 void audioIn_hwi(void);
 void audioOut_swi(void);
 
@@ -72,15 +65,8 @@ Int main()
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
     // Set audio_effect function pointer
-    //audio_effect = &effect_bandpass;
-    audio_effect = &effect_bitCrush;
-
-    //float tw = 2000.0;
-//    int L = calc_fir_len(tw);
-    //float fc_lpf = 500.0;
-    //float fc = 2000.0;
-
-    //h_bpf = generate_fir_bpf(fc, tw, fc_lpf);
+    audio_effect = &effect_bandpass;
+    //audio_effect = &effect_bitCrush;
 
     //initialization:
     DeviceInit(); //initialize processor
@@ -90,52 +76,6 @@ Int main()
     return(0);
 }
 
-//int calc_fir_len(float tw){
-//    // Calculate L for Hamming Window
-//    float L_f = 3.44 * fs/tw;
-//    int L = (int)ceilf(L_f);
-//    if (L % 2 == 0) L++;
-//
-//    return L;
-//}
-
-float * generate_fir_lpf(float fc, float tw){
-    float omega_c = (2*M_PI)*(fc+tw/2)/fs;
-    int n;
-
-    static float h_lpf[L];
-    int bias = L/2; // Calculate bias to subtract from n since it starts at 0
-
-    // Calculate h for the FIR lowpass filter
-    for(n = 0; n<L; n++) h_lpf[n] = sin((n-bias)*omega_c)/((n-bias)*M_PI);
-
-    //////// NOTE: I'm fairly certain the above line needs to have a bias applied to n due to causality
-
-    return h_lpf;
-}
-
-float * generate_fir_bpf(float fc, float tw, float fc_lpf){
-    float w_n;
-    int n;
-    float M_2PI = 2*M_PI; // Pre-calculate 2*pi
-    float omega_0 = M_2PI*fc/fs; // Pre-calculate center frequency of BPF
-    float *h_lpf;
-    static float h_bpf[L];
-
-    h_lpf = generate_fir_lpf(fc_lpf, tw);
-
-    int bias = L/2; // Calculate bias to subtract from n since it starts at 0
-
-    for(n = 0; n < L; n++){
-        // Calculate Hamming window
-        w_n = 0.54 + 0.46*cos(M_2PI*(float)(n-bias)/(L-1));
-
-        // Calculate h for the FIR bandpass filter
-        h_bpf[n] = *(h_lpf+n)*w_n*cos((float)(n-bias)*omega_0);
-    }
-
-    return h_bpf;
-}
 
 /* ======== tickFxn ======== */
 //Timer tick function that increments a counter and sets the isrFlag
@@ -175,15 +115,17 @@ Void heartbeatIdleFxn(Void)
 // Reduces the resolution of x to the specified
 // number of bits (m).
 //
+// N_bits is the bit resolution of the sample (16- or 12-bit)
+//
 // Parameters:
 // *x - The address of the sample to reduce the resolution.
 // m - The desired number of bit resolution.
 void effect_bitCrush(UInt16 *y, volatile UInt16 *x, UInt16 m)
 {
     // Calculate number of bits to shift by based on UInt16 resolution from ADC
-    UInt16 shift = 16 - m;
+    UInt16 shift = N_bits - m;
 
-    if (shift >= 16) shift = 0;
+    if (shift >= N_bits) shift = 0;
 
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
@@ -257,9 +199,7 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
     UInt16 n;
     UInt16 delay_i;
 
-    //float h[length(H_TEST)] = H_TEST;
-
-    for(n = 0; n < L; n++){
+    for(n = 0; n < N; n++){
 
         if(n >= buffer_length - buffer_i){
             delay_i = n - (buffer_length - buffer_i);
@@ -269,7 +209,7 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x, UInt16 m)
         }
 
 
-        *y += ((float)sample_buffer[delay_i] * H_TEST[n]);
+        *y += ((Float)sample_buffer[delay_i] * h[n]);
     }
 
 }
@@ -310,15 +250,16 @@ void audioOut_swi(void){
     UInt16 y = 0;
 
     // Calling audio_effect function to perform DSP
-    audio_effect(&y, &sample_buffer[buffer_i], 13);
+    audio_effect(&y, &sample_buffer[buffer_i], 12);
+
+    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i]; // audio pass-through for debug
 
     // Circular buffer indexing
     if(buffer_i >= buffer_length - 1) buffer_i = 0;
     else buffer_i++;
 
-    // Output on DAC, shift down to 12-bit resolution
-    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i] >> 4; // audio pass-through for debug
-    DacbRegs.DACVALS.bit.DACVALS = y >> 4;
+    // Output on DAC
+    DacbRegs.DACVALS.bit.DACVALS = y;
 }
 
 

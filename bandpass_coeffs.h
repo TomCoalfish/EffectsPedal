@@ -8,8 +8,11 @@
 #ifndef BANDPASS_COEFFS_H_
 #define BANDPASS_COEFFS_H_
 
-//N = 83
+#include <xdc/std.h>
+
+#define N 56
+
 //This is a test bandpass filter coeffs
-extern float H_TEST[];
+extern Float h[];
 
 #endif /* BANDPASS_COEFFS_H_ */

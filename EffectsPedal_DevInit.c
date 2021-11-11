@@ -59,10 +59,10 @@ EALLOW;
     //---------------------------------------------------------------
     // INITIALIZE A-D ---- AUDIO IN
     //---------------------------------------------------------------
-    CpuSysRegs.PCLKCR13.bit.ADC_D = 1; //enable A-D clock for ADC-A
+    CpuSysRegs.PCLKCR13.bit.ADC_D = 1; //enable A-D clock for ADC-D
     AdcdRegs.ADCCTL2.bit.PRESCALE = 0x0; // Clock prescale = 1.0
-    AdcdRegs.ADCCTL2.bit.SIGNALMODE = 1; // differential mode
-    AdcdRegs.ADCCTL2.bit.RESOLUTION = 1; // 16-bit resolution
+    AdcdRegs.ADCCTL2.bit.SIGNALMODE = 0; // fixed-mode
+    AdcdRegs.ADCCTL2.bit.RESOLUTION = 0; // 12-bit resolution
     AdcdRegs.ADCCTL1.bit.ADCPWDNZ = 1;
 
     //generate INT pulse on end of conversion:
