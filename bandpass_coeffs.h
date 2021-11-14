@@ -21,15 +21,20 @@
 #define N 56
 
 // Define the number of BPF arrays available
-#define NUM_BPF 10
+#define NUM_BPF 11
 
 // Instantiate FIR coefficient arrays, each with
 // a different bandpass center frequency
 extern Float h_1k[];
+extern Float h_1k5[];
 extern Float h_2k[];
+extern Float h_2k5[];
 extern Float h_3k[];
+extern Float h_3k5[];
 extern Float h_4k[];
+extern Float h_4k5[];
 extern Float h_5k[];
+extern Float h_5k5[];
 extern Float h_6k[];
 extern Float h_7k[];
 extern Float h_8k[];

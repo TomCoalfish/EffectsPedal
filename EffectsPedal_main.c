@@ -308,7 +308,7 @@ void gpio_effect_task(void){
         // a semaphore because it will always pre-empt gpio_effect_task
         // and is read-only for the audio_effect function.
 
-        // Check GPIO inputs to see which effect switch is active
+        // Check GPIO inputs to see which effect switch is selected
         if(GpioDataRegs.GPBDAT.bit.GPIO32) effect_num = 1;//audio_effect = &effect_bandpass;
         else if(GpioDataRegs.GPCDAT.bit.GPIO67) effect_num = 2;//audio_effect = &effect_bitCrush;
         else if(GpioDataRegs.GPDDAT.bit.GPIO111) effect_num = 3; //audio_effect = &effect_chorus;
