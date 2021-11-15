@@ -17,7 +17,7 @@
 //defines:
 #define xdc__strict //suppress typedef warnings
 #define buffer_length 9000
-#define N_bits 12 // Bit resolution of input samples
+#define N_bits 16 // Bit resolution of input samples
 
 //includes:
 #include <xdc/std.h>
@@ -72,7 +72,7 @@ Int main()
 
     // Set audio_effect function pointer
     audio_effect = &effect_bandpass;
-    //audio_effect = &effect_bitCrush;
+//    audio_effect = &effect_bitCrush;
 
     // Initialize WAHWAH bandpass window array
     h = h_arrays[0];
@@ -147,6 +147,7 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
     *y = (*x >> shift) << shift;
+//    *y = *x; // Pass-through for testing ADC and DAC
 }
 
 /* ======== effect_echo ======== */
@@ -289,8 +290,8 @@ void audioOut_swi(void){
     if(buffer_i >= buffer_length - 1) buffer_i = 0;
     else buffer_i++;
 
-    // Output on DAC
-    DacbRegs.DACVALS.bit.DACVALS = y;
+    // Output on DAC (shift output sample down to 12 bit resolution)
+    DacbRegs.DACVALS.bit.DACVALS = y >> 4;
 }
 
 /* ======== gpio_effect_task ======== */
