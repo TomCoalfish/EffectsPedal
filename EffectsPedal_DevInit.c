@@ -43,6 +43,10 @@ EALLOW;
     GpioCtrlRegs.GPAGMUX2.bit.GPIO22 = 0;
     GpioCtrlRegs.GPADIR.bit.GPIO22 = 0; // Input
 
+    // GPIO0 - Pin 40
+    GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;
+    GpioCtrlRegs.GPADIR.bit.GPIO0 = 1; // Output
+
 
 
     //---------------------------------------------------------------

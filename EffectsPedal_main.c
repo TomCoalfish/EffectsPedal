@@ -92,6 +92,8 @@ Int main()
 //Posts the task0's semaphore 20 times per second.
 void tickFxn(UArg arg)
 {
+    GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
+
     tickCount++; //increment the tick counter
 
     // 20 times per second
@@ -106,8 +108,9 @@ void tickFxn(UArg arg)
         isrFlag = TRUE;
     }
 
-
     if(tickCount % 20 == 0){
+        // Set flag indicating BPF needs to be incremented
+        // for Wah effect
         wahFlag = TRUE;
     }
 }
@@ -123,6 +126,9 @@ Void heartbeatIdleFxn(Void)
        //toggle red LED to indicate program is still running
        GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
     }
+
+    // Set GPIO0 for measuring when CPU is NOT utilized - idling.
+    GpioDataRegs.GPASET.bit.GPIO0 = 1;
 }
 
 /* ======== effect_bitCrush ======== */
@@ -244,7 +250,6 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x)
 
         *y += ((Float)sample_buffer[delay_i] * *(h+n));
     }
-
 }
 
 
@@ -253,6 +258,8 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x)
 // audio input voltage. Stores result in circular buffer.
 void audioIn_hwi(void)
 {
+    GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
+
     // Store sample sample in the next buffer slot
     sample_buffer[buffer_i] = AdcdResultRegs.ADCRESULT0; //get reading from ADC SOC0
 
@@ -266,6 +273,8 @@ void audioIn_hwi(void)
 // Hardware interrupt for the ADC measuring the
 // effect knob output voltage.
 void effectIn1_hwi(void){
+    GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
+
     // Get reading from ADC SOC0
     effect1_result = AdccResultRegs.ADCRESULT0;
 
@@ -279,6 +288,8 @@ void effectIn1_hwi(void){
 // Processes audio sample and outputs result
 // on audio output DAC.
 void audioOut_swi(void){
+    GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
+
     UInt16 y = 0;
 
     // Calling audio_effect function to perform DSP
@@ -298,6 +309,7 @@ void audioOut_swi(void){
 // This function is the task that runs periodically to check the gpio
 // inputs and change the current effect function based on the input selected.
 void gpio_effect_task(void){
+    GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
 
     UInt16 effect_num = 0;
 
