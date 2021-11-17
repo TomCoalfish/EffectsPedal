@@ -11,7 +11,7 @@
 // Authors:             Matthew Peeters, A01014378
 //                      Kieran Bako, A01028276
 //
-// Date:                2021-11-06
+// Date:                2021-11-17
 
 
 //defines:
@@ -38,7 +38,7 @@ extern const Swi_Handle effect_swi_handle;
 extern const Task_Handle task0;
 
 //Semaphores defined in .cfg file:
-extern const Semaphore_Handle sem0;
+extern const Semaphore_Handle gpioTask_sem;
 
 //Declare global variables:
 volatile Bool isrFlag = FALSE; // Flag used by idle function
@@ -46,7 +46,7 @@ volatile Bool wahFlag = FALSE; // Flag used by wah effect to increment BPF frequ
 volatile UInt16 wahIndex = 0; // Index used by wah effect to increment BPF
 volatile Int16 wahDirection = 1; // Direction to increment BPF frequency
 volatile UInt tickCount = 0; // Counter incremented by timer interrupt
-volatile UInt16 effect1_result; // Current position of Effect potentiometer
+volatile UInt16 effectKnob_result; // Current position of Effect potentiometer
 
 /* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
@@ -56,14 +56,18 @@ volatile Uint16 buffer_i = 0; // Current index of buffer
 
 //function prototypes:
 extern void DeviceInit(void);
-void (*audio_effect)(UInt *, volatile UInt16 *); // Declare pointer to effect function
+Void heartbeatIdleFxn(Void); // IDLE
+void tickFxn(UArg arg); // Timer interrupt
+void (*audio_effect)(UInt *, volatile UInt16 *); // Pointer to effect function
 void effect_bitCrush(UInt16 *y, volatile UInt16 *x);
 void effect_echo(UInt16 *y, volatile UInt16 *x);
 void effect_chorus(UInt16 *y, volatile UInt16 *x);
-void effect_bandpass(UInt16 *y, volatile UInt16 *x);
-void audioIn_hwi(void);
-void effectIn1_hwi(void);
-void audioOut_swi(void);
+void effect_wah(UInt16 *y, volatile UInt16 *x);
+void effect_passthrough(UInt16 *y, volatile UInt16 *x);
+void audioIn_hwi(void); // Hwi for audio input ADC
+void effectIn1_hwi(void); // Hwi for effect knob ADC
+void audioOut_swi(void); // Swi for DSP on samples
+void gpio_effect_task(void); // TSK for polling gpio and changing effect function
 
 /* ======== main ======== */
 Int main()
@@ -71,8 +75,10 @@ Int main()
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
     // Set audio_effect function pointer
-    audio_effect = &effect_bandpass;
+    audio_effect = &effect_wah;
 //    audio_effect = &effect_bitCrush;
+//    audio_effect = &effect_chorus;
+//    audio_effect = &effect_echo;
 
     // Initialize WAHWAH bandpass window array
     h = h_arrays[0];
@@ -99,7 +105,7 @@ void tickFxn(UArg arg)
     // 20 times per second
     if(tickCount % 5 == 0) {
         // Post semaphore for task0 (gpio_effect_task)
-        Semaphore_post(sem0);
+        Semaphore_post(gpioTask_sem);
     }
 
     // Twice per second
@@ -108,7 +114,7 @@ void tickFxn(UArg arg)
         isrFlag = TRUE;
     }
 
-    if(tickCount % 20 == 0){
+    if(tickCount % 5 == 0){
         // Set flag indicating BPF needs to be incremented
         // for Wah effect
         wahFlag = TRUE;
@@ -143,7 +149,7 @@ Void heartbeatIdleFxn(Void)
 // m - The desired number of bit resolution.
 void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
 {
-    UInt16 m = 12;
+    UInt16 m = 2;
 
     // Calculate number of bits to shift by based on UInt16 resolution from ADC
     UInt16 shift = N_bits - m;
@@ -164,21 +170,18 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
 // Parameters:
 // *y - The address of the sample to output.
 // *x - The address of the sample to add delay to.
-// m - The amount of delay to add in samples. (order of 1000s of samples)
+// m - The amount of delay to add in samples. (order of 10,000s of samples but not supported with current buffer config)
 void effect_echo(UInt16 *y, volatile UInt16 *x)
 {
 
-    UInt16 m = 1000;
+    UInt16 m = 8500;
 
-    float g = 0.25; // This will need to be adjusted by effect knob
+    Float g = 0.25; // This will need to be adjusted by effect knob
     UInt16 delay_i;
 
-    if(m >= buffer_length - buffer_i){
-        delay_i = m - (buffer_length - buffer_i);
-    }
-    else{
-        delay_i = buffer_i + m;
-    }
+    // Determine the index of the sample delayed by m elements
+    if((buffer_i - m) >= buffer_length) delay_i = (buffer_length - 1) - (m - buffer_i);
+    else delay_i = buffer_i - m;
 
     *x = *x + (UInt16)(g*sample_buffer[delay_i]);
     *y = *x;
@@ -197,31 +200,31 @@ void effect_echo(UInt16 *y, volatile UInt16 *x)
 void effect_chorus(UInt16 *y, volatile UInt16 *x)
 {
 
-    UInt16 m = 50;
+    UInt16 m = 960; // Delay of 960 samples ~20ms
+    Float g = 0.8;
 
     UInt16 delay_i;
 
-    if(m >= buffer_length - buffer_i){
-        delay_i = m - (buffer_length - buffer_i);
-    }
-    else{
-        delay_i = buffer_i + m;
-    }
+    // Determine the index of the sample delayed by m elements
+    if((buffer_i - m) >= buffer_length) delay_i = (buffer_length - 1) - (m - buffer_i);
+    else delay_i = buffer_i - m;
 
-    *y = *x + sample_buffer[delay_i];
+    *y = *x + (UInt16)(sample_buffer[delay_i]*g);
 }
 
-/* ======== effect_bandpass ======== */
-// Implements an FIR bandpass filter via Hamming windowing
+/* ======== effect_wah ======== */
+// Implements an FIR bandpass filter via Hamming windowing method
+// The center frequency of the filter is changed by changing the
+// filter coefficient array at a configurable increment period.
 //
 // Parameters:
 // *y - The address of the result
 // *x - The address of the incoming sample
-// m - Currently unused...
-void effect_bandpass(UInt16 *y, volatile UInt16 *x)
+void effect_wah(UInt16 *y, volatile UInt16 *x)
 {
     UInt16 n;
     UInt16 delay_i;
+
 
     if(wahFlag == TRUE){
         wahFlag = FALSE;
@@ -238,18 +241,28 @@ void effect_bandpass(UInt16 *y, volatile UInt16 *x)
         wahIndex += wahDirection;
     }
 
+    // Increment through each element of the dot product
     for(n = 0; n < N; n++){
 
-        if(n >= buffer_length - buffer_i){
-            delay_i = n - (buffer_length - buffer_i);
-        }
-        else{
-            delay_i = buffer_i + n;
-        }
+        // Determine the index of the sample delayed by m elements
+        if((buffer_i - n) >= buffer_length) delay_i = (buffer_length - 1) - (n - buffer_i);
+        else delay_i = buffer_i - n;
 
-
+        // Sum each product
         *y += ((Float)sample_buffer[delay_i] * *(h+n));
     }
+}
+
+
+/* ======== effect_passthrough ======== */
+// This function does not apply an effect to the input sample.
+// It simply passes the current sample to the DAC output.
+//
+// Parameters:
+// *y - The address of the result
+// *x - The address of the incoming sample
+void effect_passthrough(UInt16 *y, volatile UInt16 *x){
+    *y = *x;
 }
 
 
@@ -276,7 +289,7 @@ void effectIn1_hwi(void){
     GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
 
     // Get reading from ADC SOC0
-    effect1_result = AdccResultRegs.ADCRESULT0;
+    effectKnob_result = AdccResultRegs.ADCRESULT0;
 
     // Clear interrupt flag
     AdccRegs.ADCINTFLGCLR.bit.ADCINT2 = 1;
@@ -292,10 +305,7 @@ void audioOut_swi(void){
 
     UInt16 y = 0;
 
-    // Calling audio_effect function to perform DSP
-    audio_effect(&y, &sample_buffer[buffer_i]);
-
-    //DacbRegs.DACVALS.bit.DACVALS = sample_buffer[buffer_i]; // audio pass-through for debug
+    audio_effect(&y, &sample_buffer[buffer_i]); // Call audio_effect function to perform DSP
 
     // Circular buffer indexing
     if(buffer_i >= buffer_length - 1) buffer_i = 0;
@@ -315,16 +325,17 @@ void gpio_effect_task(void){
 
     while(TRUE){
         // Wait for semaphore post from timer...
-        Semaphore_pend(sem0, BIOS_WAIT_FOREVER);
+        Semaphore_pend(gpioTask_sem, BIOS_WAIT_FOREVER);
 
         // In theory there is no need to wait for Swi to post
         // a semaphore because it will always pre-empt gpio_effect_task
         // and is read-only for the audio_effect function.
 
         // Check GPIO inputs to see which effect switch is selected
-        if(GpioDataRegs.GPBDAT.bit.GPIO32) effect_num = 1;//audio_effect = &effect_bandpass;
+        if(GpioDataRegs.GPBDAT.bit.GPIO32) effect_num = 1;//audio_effect = &effect_wah;
         else if(GpioDataRegs.GPCDAT.bit.GPIO67) effect_num = 2;//audio_effect = &effect_bitCrush;
         else if(GpioDataRegs.GPDDAT.bit.GPIO111) effect_num = 3; //audio_effect = &effect_chorus;
         else if(GpioDataRegs.GPADAT.bit.GPIO22) effect_num = 4; //audio_effect = &effect_echo;
+        else effect_num = 0; //audio_effect = &effect_passthrough;
     }
 }
