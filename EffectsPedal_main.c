@@ -69,16 +69,19 @@ void effectIn1_hwi(void); // Hwi for effect knob ADC
 void audioOut_swi(void); // Swi for DSP on samples
 void gpio_effect_task(void); // TSK for polling gpio and changing effect function
 
+
+
+
 /* ======== main ======== */
 Int main()
 { 
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
     // Set audio_effect function pointer
-    audio_effect = &effect_wah;
+//    audio_effect = &effect_wah;
 //    audio_effect = &effect_bitCrush;
 //    audio_effect = &effect_chorus;
-//    audio_effect = &effect_echo;
+    audio_effect = &effect_echo;
 
     // Initialize WAHWAH bandpass window array
     h = h_arrays[0];
