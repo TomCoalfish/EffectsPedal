@@ -45,6 +45,20 @@ Int main()
 { 
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
+<<<<<<< Updated upstream
+=======
+    // Set audio_effect function pointer
+    //audio_effect = &effect_bandpass;
+    audio_effect = &effect_bandpass;
+
+    //float tw = 2000.0;
+//    int L = calc_fir_len(tw);
+    //float fc_lpf = 500.0;
+    //float fc = 2000.0;
+
+    //h_bpf = generate_fir_bpf(fc, tw, fc_lpf);
+
+>>>>>>> Stashed changes
     //initialization:
     DeviceInit(); //initialize processor
 
