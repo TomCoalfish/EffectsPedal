@@ -78,7 +78,7 @@ EALLOW;
     AdcdRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable interrupt ADCINT1
 
     //---------------------------------------------------------------
-    // INITIALIZE A-D ---- EFFECT KNOB
+    // INITIALIZE A-D ---- EFFECT KNOB (Pin 27)
     //---------------------------------------------------------------
     CpuSysRegs.PCLKCR13.bit.ADC_C = 1; //enable A-D clock for ADC-C
     AdccRegs.ADCCTL2.bit.PRESCALE = 0x0; // Clock prescale = 1.0

@@ -46,12 +46,13 @@ volatile Bool wahFlag = FALSE; // Flag used by wah effect to increment BPF frequ
 volatile UInt16 wahIndex = 0; // Index used by wah effect to increment BPF
 volatile Int16 wahDirection = 1; // Direction to increment BPF frequency
 volatile UInt tickCount = 0; // Counter incremented by timer interrupt
-volatile UInt16 effectKnob_result; // Current position of Effect potentiometer
+volatile UInt16 effectKnob_result = 0; // Current position of Effect potentiometer
+volatile UInt16 effectKnob_results[10] = { 0 }; // Buffer used to average position of effect pot
 
 /* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
 // throws an error due to how the RAM is addressed
-volatile Uint16 sample_buffer[buffer_length];
+volatile Uint16 sample_buffer[buffer_length] = { 0 };
 volatile Uint16 buffer_i = 0; // Current index of buffer
 
 //function prototypes:
@@ -78,10 +79,7 @@ Int main()
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
 
     // Set audio_effect function pointer
-//    audio_effect = &effect_wah;
-//    audio_effect = &effect_bitCrush;
-//    audio_effect = &effect_chorus;
-    audio_effect = &effect_echo;
+    audio_effect = &effect_passthrough;
 
     // Initialize WAHWAH bandpass window array
     h = h_arrays[0];
@@ -117,7 +115,8 @@ void tickFxn(UArg arg)
         isrFlag = TRUE;
     }
 
-    if(tickCount % 5 == 0){
+    // Increment BPF for wah ~5.9 to 100 times per second depending on position of effect knob
+    if(tickCount % ((effectKnob_result>>8) + 1) == 0){
         // Set flag indicating BPF needs to be incremented
         // for Wah effect
         wahFlag = TRUE;
@@ -152,7 +151,8 @@ Void heartbeatIdleFxn(Void)
 // m - The desired number of bit resolution.
 void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
 {
-    UInt16 m = 2;
+    // 1 to 12 bits of resolution based on effect knob position
+    UInt16 m = (UInt16)((11.0/4096.0)*(effectKnob_result)+1);
 
     // Calculate number of bits to shift by based on UInt16 resolution from ADC
     UInt16 shift = N_bits - m;
@@ -162,7 +162,6 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
     // Shift right to reduce bit resolution,
     // shift back to original number of bits
     *y = (*x >> shift) << shift;
-//    *y = *x; // Pass-through for testing ADC and DAC
 }
 
 /* ======== effect_echo ======== */
@@ -176,10 +175,10 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
 // m - The amount of delay to add in samples. (order of 10,000s of samples but not supported with current buffer config)
 void effect_echo(UInt16 *y, volatile UInt16 *x)
 {
+    // Delay between echoes is ~100ms to ~187ms
+    UInt16 m = effectKnob_result + 4900;
 
-    UInt16 m = 8500;
-
-    Float g = 0.25; // This will need to be adjusted by effect knob
+    Float g = 0.2; // This will need to be adjusted by effect knob
     UInt16 delay_i;
 
     // Determine the index of the sample delayed by m elements
@@ -203,8 +202,10 @@ void effect_echo(UInt16 *y, volatile UInt16 *x)
 void effect_chorus(UInt16 *y, volatile UInt16 *x)
 {
 
-    UInt16 m = 960; // Delay of 960 samples ~20ms
-    Float g = 0.8;
+    // Delay range of 10ms to ~52ms
+    UInt16 m = (effectKnob_result>>1) + 480;
+
+    Float g = 0.3;
 
     UInt16 delay_i;
 
@@ -287,12 +288,27 @@ void audioIn_hwi(void)
 
 /* ======== effectIn1_hwi ======== */
 // Hardware interrupt for the ADC measuring the
-// effect knob output voltage.
+// effect knob output voltage. Checked 100 times per second.
 void effectIn1_hwi(void){
+    Uint16 moving_average = 0;
+
     GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
 
+    Uint16 i;
+
+    // Shift elements in linear buffer
+    for(i = 0; i < 9; i++){
+        effectKnob_results[i+1] = effectKnob_results[i];
+        moving_average += effectKnob_results[i+1];
+    }
+
     // Get reading from ADC SOC0
-    effectKnob_result = AdccResultRegs.ADCRESULT0;
+    effectKnob_results[0] = AdccResultRegs.ADCRESULT0;
+
+    // Compute moving average of last 10 samples to filter out
+    // any high frequency transients on effect knob ADC reading
+    moving_average = (moving_average + effectKnob_results[0])/10;
+    effectKnob_result = moving_average; // 0 to 4095
 
     // Clear interrupt flag
     AdccRegs.ADCINTFLGCLR.bit.ADCINT2 = 1;
@@ -324,8 +340,6 @@ void audioOut_swi(void){
 void gpio_effect_task(void){
     GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
 
-    UInt16 effect_num = 0;
-
     while(TRUE){
         // Wait for semaphore post from timer...
         Semaphore_pend(gpioTask_sem, BIOS_WAIT_FOREVER);
@@ -335,10 +349,10 @@ void gpio_effect_task(void){
         // and is read-only for the audio_effect function.
 
         // Check GPIO inputs to see which effect switch is selected
-        if(GpioDataRegs.GPBDAT.bit.GPIO32) effect_num = 1;//audio_effect = &effect_wah;
-        else if(GpioDataRegs.GPCDAT.bit.GPIO67) effect_num = 2;//audio_effect = &effect_bitCrush;
-        else if(GpioDataRegs.GPDDAT.bit.GPIO111) effect_num = 3; //audio_effect = &effect_chorus;
-        else if(GpioDataRegs.GPADAT.bit.GPIO22) effect_num = 4; //audio_effect = &effect_echo;
-        else effect_num = 0; //audio_effect = &effect_passthrough;
+        if(GpioDataRegs.GPBDAT.bit.GPIO32) audio_effect = &effect_wah;
+        else if(GpioDataRegs.GPCDAT.bit.GPIO67) audio_effect = &effect_bitCrush;
+        else if(GpioDataRegs.GPDDAT.bit.GPIO111) audio_effect = &effect_chorus;
+        else if(GpioDataRegs.GPADAT.bit.GPIO22) audio_effect = &effect_echo;
+        else audio_effect = &effect_passthrough;
     }
 }
