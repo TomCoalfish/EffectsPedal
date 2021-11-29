@@ -2,7 +2,7 @@
  * bandpass_coeffs.h
  *
  *  Created on: Nov 8, 2021
- *      Author: Kieran Bako & Matthew Peeters
+ *     Authors: Kieran Bako & Matthew Peeters
  *
  * This file acts as a look-up table for the bandpass FIR coefficients necessary for
  * the "WAH" effect. The intention is for the program to be able to change the center

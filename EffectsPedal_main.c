@@ -16,7 +16,7 @@
 
 //defines:
 #define xdc__strict //suppress typedef warnings
-#define buffer_length 9000
+#define buffer_length 9000 // Number of elements in sample buffer
 #define N_bits 16 // Bit resolution of input samples
 
 //includes:
@@ -51,7 +51,7 @@ volatile UInt16 effectKnob_results[10] = { 0 }; // Buffer used to average positi
 
 /* ---- Declare Buffer ---- */
 // Having a buffer (or struct) longer than ~10,000 elements
-// throws an error due to how the RAM is addressed
+// throws an error due to how the RAM is allocated
 volatile Uint16 sample_buffer[buffer_length] = { 0 };
 volatile Uint16 buffer_i = 0; // Current index of buffer
 
@@ -74,6 +74,7 @@ void gpio_effect_task(void); // TSK for polling gpio and changing effect functio
 
 
 /* ======== main ======== */
+// Initializes the processor and jumps to the RTOS
 Int main()
 { 
     System_printf("Enter main()\n"); //use ROV->SysMin to view the characters in the circular buffer
@@ -94,9 +95,11 @@ Int main()
 
 
 /* ======== tickFxn ======== */
-//Timer tick function that increments a counter and sets the isrFlag
-//Entered 100 times per second if PLL and Timer set up correctly
-//Posts the task0's semaphore 20 times per second.
+// Timer tick function that increments a counter and sets the isrFlag
+// Entered 100 times per second if PLL and Timer set up correctly
+// Posts the task0's semaphore 20 times per second.
+// - MP
+//
 void tickFxn(UArg arg)
 {
     GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
@@ -126,6 +129,7 @@ void tickFxn(UArg arg)
 /* ======== heartbeatIdleFxn ======== */
 // Idle function that is called repeatedly from RTOS
 // Toggles on-board LED to indicate that program is running
+// - MP
 Void heartbeatIdleFxn(Void)
 {
     if(isrFlag == TRUE) {
@@ -142,6 +146,8 @@ Void heartbeatIdleFxn(Void)
 /* ======== effect_bitCrush ======== */
 // Reduces the resolution of x to the specified
 // number of bits (m).
+//
+// - MP
 //
 // N_bits is the bit resolution of the sample (16- or 12-bit)
 //
@@ -173,6 +179,9 @@ void effect_bitCrush(UInt16 *y, volatile UInt16 *x)
 // *y - The address of the sample to output.
 // *x - The address of the sample to add delay to.
 // m - The amount of delay to add in samples. (order of 10,000s of samples but not supported with current buffer config)
+//
+// - KB
+//
 void effect_echo(UInt16 *y, volatile UInt16 *x)
 {
     // Delay between echoes is ~100ms to ~187ms
@@ -199,6 +208,9 @@ void effect_echo(UInt16 *y, volatile UInt16 *x)
 // *y - The address of the sample to output.
 // *x - The address of the sample to add echo to.
 // m - The amount of delay to add in samples (order of 10 to 100s of samples)
+//
+// - KB
+//
 void effect_chorus(UInt16 *y, volatile UInt16 *x)
 {
 
@@ -224,6 +236,9 @@ void effect_chorus(UInt16 *y, volatile UInt16 *x)
 // Parameters:
 // *y - The address of the result
 // *x - The address of the incoming sample
+//
+// - MP & KB
+//
 void effect_wah(UInt16 *y, volatile UInt16 *x)
 {
     UInt16 n;
@@ -265,6 +280,9 @@ void effect_wah(UInt16 *y, volatile UInt16 *x)
 // Parameters:
 // *y - The address of the result
 // *x - The address of the incoming sample
+//
+// - MP
+//
 void effect_passthrough(UInt16 *y, volatile UInt16 *x){
     *y = *x;
 }
@@ -273,6 +291,9 @@ void effect_passthrough(UInt16 *y, volatile UInt16 *x){
 /* ======== audioIn_hwi ======== */
 // Hardware interrupt for the ADC measuring the
 // audio input voltage. Stores result in circular buffer.
+//
+// - MP
+//
 void audioIn_hwi(void)
 {
     GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
@@ -289,6 +310,9 @@ void audioIn_hwi(void)
 /* ======== effectIn1_hwi ======== */
 // Hardware interrupt for the ADC measuring the
 // effect knob output voltage. Checked 100 times per second.
+//
+// - MP
+//
 void effectIn1_hwi(void){
     Uint16 moving_average = 0;
 
@@ -319,6 +343,9 @@ void effectIn1_hwi(void){
 // audio sample has been added to the buffer.
 // Processes audio sample and outputs result
 // on audio output DAC.
+//
+// - KB
+//
 void audioOut_swi(void){
     GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
 
@@ -337,6 +364,9 @@ void audioOut_swi(void){
 /* ======== gpio_effect_task ======== */
 // This function is the task that runs periodically to check the gpio
 // inputs and change the current effect function based on the input selected.
+//
+// - MP & KB
+//
 void gpio_effect_task(void){
     GpioDataRegs.GPACLEAR.bit.GPIO0 = 1; // Clear GPIO0 - CPU is utilized
 
